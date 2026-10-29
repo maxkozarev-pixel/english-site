@@ -1,0 +1,129 @@
+const revealItems = document.querySelectorAll(".reveal");
+
+if ("IntersectionObserver" in window) {
+  const revealObserver = new IntersectionObserver(
+    (entries, observer) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
+      });
+    },
+    { threshold: 0.12 }
+  );
+
+  revealItems.forEach((item) => revealObserver.observe(item));
+} else {
+  revealItems.forEach((item) => item.classList.add("is-visible"));
+}
+
+const reviewLightbox = document.querySelector(".review-lightbox");
+const reviewLightboxImage = reviewLightbox?.querySelector("img");
+const reviewLightboxClose = reviewLightbox?.querySelector(".review-lightbox-close");
+let activeReviewCard = null;
+
+function openReviewLightbox(card) {
+  if (!reviewLightbox || !reviewLightboxImage) return;
+
+  const image = card.querySelector("img");
+  if (!image) return;
+
+  activeReviewCard = card;
+  reviewLightboxImage.src = image.currentSrc || image.src;
+  reviewLightboxImage.alt = image.alt;
+  reviewLightbox.setAttribute("aria-label", image.alt || "Увеличенное изображение");
+  reviewLightbox.hidden = false;
+  document.body.classList.add("review-lightbox-open");
+  reviewLightboxClose?.focus();
+}
+
+function closeReviewLightbox() {
+  if (!reviewLightbox || reviewLightbox.hidden) return;
+
+  reviewLightbox.hidden = true;
+  document.body.classList.remove("review-lightbox-open");
+  reviewLightboxImage.removeAttribute("src");
+  reviewLightboxImage.alt = "";
+  reviewLightbox.setAttribute("aria-label", "Увеличенное изображение");
+  activeReviewCard?.focus();
+  activeReviewCard = null;
+}
+
+document.querySelectorAll(".review-card, .platform-visual").forEach((card) => {
+  card.addEventListener("click", () => openReviewLightbox(card));
+});
+
+reviewLightbox?.addEventListener("click", (event) => {
+  if (
+    event.target === reviewLightbox ||
+    event.target === reviewLightboxImage ||
+    event.target === reviewLightboxClose
+  ) {
+    closeReviewLightbox();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeReviewLightbox();
+});
+
+const heroLeadForm = document.querySelector("#hero-lead-form");
+const heroLeadSuccess = heroLeadForm?.querySelector(".hero-lead-success");
+const heroLeadSubmit = heroLeadForm?.querySelector(".hero-lead-submit");
+
+heroLeadForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!heroLeadForm.checkValidity()) {
+    heroLeadForm.reportValidity();
+    return;
+  }
+
+  if (heroLeadSubmit) {
+    heroLeadSubmit.disabled = true;
+    heroLeadSubmit.textContent = "Отправляем…";
+  }
+
+  const formData = new FormData(heroLeadForm);
+  const payload = {
+    name: String(formData.get("name") || "").trim(),
+    phone: String(formData.get("phone") || "").trim(),
+    consent: formData.get("personal-data-consent") === "on",
+    website: String(formData.get("website") || ""),
+    page: window.location.href,
+    referrer: document.referrer,
+  };
+
+  try {
+    const response = await fetch("/send-lead.php", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.ok) {
+      throw new Error("Lead delivery failed");
+    }
+
+  } catch (error) {
+    // Ошибка доставки не показывается посетителю.
+  } finally {
+    heroLeadForm.reset();
+    heroLeadForm.querySelectorAll("input").forEach((input) => {
+      input.disabled = true;
+    });
+
+    if (heroLeadSubmit) {
+      heroLeadSubmit.textContent = "Отправлено";
+    }
+
+    if (heroLeadSuccess) {
+      heroLeadSuccess.hidden = false;
+    }
+  }
+});
